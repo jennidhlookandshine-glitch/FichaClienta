@@ -1,0 +1,49 @@
+/* Botones unificados para <button> y <a> */
+.btn-primary,
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  min-width: 160px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  transition: filter 0.15s ease, transform 0.02s ease, box-shadow 0.15s ease;
+}
+
+/* Botón principal rosado */
+.btn-primary {
+  background-color: #ec4899; /* bg-pink-500 */
+  color: #fff;
+  border: 1px solid #db2777; /* borde más oscuro */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-primary:hover {
+  filter: brightness(0.95);
+  transform: scale(1.05);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* Botón outline */
+.btn-outline {
+  background: transparent;
+  color: #db2777;
+  border: 1px solid #db2777;
+}
+
+.btn-outline:hover {
+  filter: brightness(0.95);
+  transform: scale(1.05);
+}
+
+.btn-outline:active {
+  transform: translateY(1px);
+}
