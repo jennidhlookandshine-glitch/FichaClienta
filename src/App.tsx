@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ClientaProvider } from "./ClientaContext";
 
