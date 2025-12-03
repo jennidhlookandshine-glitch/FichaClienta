@@ -9,15 +9,17 @@ export default function MapaExtensiones({ onGuardar }) {
   const [grosor, setGrosor] = useState(2);
   const [modoBorrador, setModoBorrador] = useState(false);
 
-  const historialRef = useRef([]); // aquí guardamos los estados del canvas
+  const historialRef = useRef([]);
 
-  // Cargar imagen fondo
+  // ✅ Cargar imagen fondo (compatible con GitHub Pages)
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
 
     const img = new Image();
-    img.src = "/parche-ojo-ejemplo.png";
+    img.src = import.meta.env.BASE_URL + "parche-ojo-ejemplo.png";
 
     img.onload = () => {
       canvas.width = img.width;
@@ -25,10 +27,14 @@ export default function MapaExtensiones({ onGuardar }) {
       ctx.drawImage(img, 0, 0);
       setImagenCargada(true);
 
-      // primer estado guardado
-      historialRef.current.push(canvas.toDataURL());
+      historialRef.current = [canvas.toDataURL()];
     };
   }, []);
+
+  // ✅ Evita scroll en celular
+  const prevenirScroll = (e) => {
+    e.preventDefault();
+  };
 
   const obtenerPos = (e) => {
     const canvas = canvasRef.current;
@@ -49,7 +55,6 @@ export default function MapaExtensiones({ onGuardar }) {
   const comenzarDibujo = (e) => {
     if (!imagenCargada) return;
 
-    // GUARDAR ESTADO ANTES DE DIBUJAR
     const canvas = canvasRef.current;
     historialRef.current.push(canvas.toDataURL());
 
@@ -75,14 +80,17 @@ export default function MapaExtensiones({ onGuardar }) {
   };
 
   const terminarDibujo = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.closePath();
     setDibujando(false);
   };
 
-  // DESHACER
+  // ✅ DESHACER
   const deshacer = () => {
-    if (historialRef.current.length <= 1) return; // no hay más para deshacer
+    if (historialRef.current.length <= 1) return;
 
-    historialRef.current.pop(); // eliminamos el estado actual
+    historialRef.current.pop();
     const ultimoEstado = historialRef.current[historialRef.current.length - 1];
 
     const canvas = canvasRef.current;
@@ -96,20 +104,17 @@ export default function MapaExtensiones({ onGuardar }) {
     };
   };
 
-  // LIMPIAR COMPLETO
+  // ✅ LIMPIAR COMPLETO
   const limpiarCanvas = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
     const img = new Image();
-   img.src = "/parche-ojo-ejemplo.png";
-
+    img.src = import.meta.env.BASE_URL + "parche-ojo-ejemplo.png";
 
     img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
-
-      // limpiar historial y guardar estado nuevo
       historialRef.current = [canvas.toDataURL()];
     };
   };
@@ -128,7 +133,6 @@ export default function MapaExtensiones({ onGuardar }) {
 
       {/* Controles */}
       <div className="flex items-center gap-3 flex-wrap">
-        
         {/* Color */}
         <input
           type="color"
@@ -191,8 +195,14 @@ export default function MapaExtensiones({ onGuardar }) {
           onMouseMove={dibujar}
           onMouseUp={terminarDibujo}
           onMouseLeave={terminarDibujo}
-          onTouchStart={comenzarDibujo}
-          onTouchMove={dibujar}
+          onTouchStart={(e) => {
+            prevenirScroll(e);
+            comenzarDibujo(e);
+          }}
+          onTouchMove={(e) => {
+            prevenirScroll(e);
+            dibujar(e);
+          }}
           onTouchEnd={terminarDibujo}
           style={{ cursor: "crosshair", display: "block", maxWidth: "100%" }}
         />
@@ -208,4 +218,3 @@ export default function MapaExtensiones({ onGuardar }) {
     </div>
   );
 }
-
