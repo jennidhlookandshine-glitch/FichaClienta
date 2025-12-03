@@ -102,7 +102,8 @@ export default function MapaExtensiones({ onGuardar }) {
     const ctx = canvas.getContext("2d");
 
     const img = new Image();
-    img.src = "/parche-ojo-ejemplo.png";
+   img.src = "/parche-ojo-ejemplo.png";
+
 
     img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
