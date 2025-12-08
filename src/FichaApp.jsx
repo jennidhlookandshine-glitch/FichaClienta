@@ -58,9 +58,15 @@ export default function FichaApp({ onVolver }) {
               type="button"
               className="h-12 min-w-44 px-7 rounded-full font-bold text-white shadow-md active:translate-y-[1px] transition"
               style={{ background: "linear-gradient(90deg,#f472b6,#db2777)" }}
-              onClick={() => setVista("servicio")}
+              onClick={() => {
+                if (!datosBasicos) {
+                  alert("Primero completa y guarda los datos básicos de la clienta.");
+                  return;
+                }
+                setVista("servicio");
+              }}
             >
-              Continuar
+              Guardar y continuar
             </button>
           </div>
         </>
@@ -171,6 +177,7 @@ export default function FichaApp({ onVolver }) {
     </div>
   );
 }
+
 
 
 

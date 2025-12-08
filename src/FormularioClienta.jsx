@@ -1,98 +1,75 @@
-import React, { useMemo, useState } from "react";
+// @ts-nocheck
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function FormNuevaClienta({ onGuardar }) {
-  const hoy = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [nombre, setNombre] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [fecha, setFecha] = useState(hoy);
-  const [mensaje, setMensaje] = useState("");
-  const [guardando, setGuardando] = useState(false);
+  const navigate = useNavigate();
 
-  function normNombre(s = "") {
-    return s.trim().replace(/\s+/g, " ");
-  }
-  function normTelefono(s = "") {
-    return s.replace(/[^\d+]/g, "");
-  }
+  const [form, setForm] = useState({
+    nombre: "",
+    apellido: "",
+    telefono: "",
+    fechaNacimiento: "",
+    fechaAtencion: new Date().toISOString().split("T")[0],
+    alergias: "",
+    embarazadaLactancia: "",
+    lentesContacto: "",
+    enfermedadPiel: "",
+    observacionesProfesional: "",
+  });
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    const nombreOk = normNombre(nombre);
-    if (!nombreOk) {
-      setMensaje("Ingresa un nombre válido.");
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGuardar = async () => {
+    if (!form.nombre.trim() || !form.apellido.trim()) {
+      alert("Debes ingresar nombre y apellido de la clienta");
       return;
     }
-    const telefonoOk = normTelefono(telefono);
-    const payload = {
-      nombre: nombreOk,
-      clienteLower: nombreOk.toLowerCase(),
-      telefono: telefonoOk,
-      fecha: fecha || hoy,
+
+    const fichaCompleta = {
+      ...form,
+      nombreCompleto: `${form.nombre.trim()} ${form.apellido.trim()}`,
+      creadoEn: new Date(),
+      servicios: [],
     };
 
     try {
-      setGuardando(true);
-      setMensaje("");
-      if (onGuardar) {
-        await onGuardar(payload);
-      }
-      setMensaje("Clienta guardada correctamente.");
-      setNombre("");
-      setTelefono("");
-      setFecha(hoy);
-    } catch (err) {
-      console.error(err);
-      setMensaje("No se pudo guardar. Intenta nuevamente.");
-    } finally {
-      setGuardando(false);
+      // onGuardar debe devolver un id único de la clienta en Firebase
+      const id = await onGuardar(fichaCompleta);
+
+      // 🚀 Navegar a selección de servicios pasando la clienta creada
+      navigate("/seleccionar-servicio", { state: { clienta: { ...fichaCompleta, id } } });
+    } catch (error) {
+      console.error("Error al guardar la ficha:", error);
+      alert("Error al guardar la ficha");
     }
-  }
+  };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="max-w-md mx-auto bg-white/70 backdrop-blur-md rounded-2xl p-6 shadow-lg border border-pink300/30 animate-fadeIn"
-    >
-      <h3 className="text-pink700 text-lg font-semibold mb-4 text-center">
-        Agregar nueva clienta
-      </h3>
-
-      <input
-        type="text"
-        placeholder="Nombre"
-        value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-        required
-        className="w-full mb-3 px-4 py-2 border border-pink300 rounded-xl focus:ring-2 focus:ring-pink400 focus:outline-none transition"
-      />
-
-      <input
-        type="text"
-        placeholder="Teléfono"
-        value={telefono}
-        onChange={(e) => setTelefono(e.target.value)}
-        className="w-full mb-3 px-4 py-2 border border-pink300 rounded-xl focus:ring-2 focus:ring-pink400 focus:outline-none transition"
-      />
-
-      <input
-        type="date"
-        value={fecha}
-        onChange={(e) => setFecha(e.target.value)}
-        className="w-full mb-4 px-4 py-2 border border-pink300 rounded-xl focus:ring-2 focus:ring-pink400 focus:outline-none transition"
-      />
-
-      <button
-        type="submit"
-        disabled={guardando}
-        className="w-full bg-gradient-to-b from-pink400 to-pink600 text-white font-semibold py-2.5 rounded-xl shadow-btn hover:brightness-110 active:translate-y-[1px] transition disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {guardando ? "Guardando..." : "Guardar"}
+    <div style={{ padding: 20 }}>
+      <input name="nombre" placeholder="Nombre" value={form.nombre} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="apellido" placeholder="Apellido" value={form.apellido} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="telefono" placeholder="Teléfono" value={form.telefono} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input type="date" name="fechaNacimiento" value={form.fechaNacimiento} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="alergias" placeholder="Alergias" value={form.alergias} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="embarazadaLactancia" placeholder="Embarazo / lactancia" value={form.embarazadaLactancia} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="lentesContacto" placeholder="Uso de lentes de contacto" value={form.lentesContacto} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <input name="enfermedadPiel" placeholder="Enfermedades de la piel" value={form.enfermedadPiel} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      <textarea name="observacionesProfesional" placeholder="Observaciones del profesional" value={form.observacionesProfesional} onChange={handleChange} style={{ width: "100%", padding: 10, marginBottom: 10 }} />
+      
+      <button onClick={handleGuardar} style={{ width: "100%", padding: 14, background: "#e91e63", color: "#fff", border: "none", borderRadius: 12, fontWeight: "bold", cursor: "pointer" }}>
+        Continuar ➡️
       </button>
-
-      {mensaje && (
-        <p className="mt-3 text-pink700 font-medium text-center">{mensaje}</p>
-      )}
-    </form>
+    </div>
   );
 }
+
+
+
+
+
+
 

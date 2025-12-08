@@ -1,15 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
-import CardGradient from "./CardGradient";
+import { useClienta } from "./ClientaContext";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 export default function FormularioDatosBasicos({ onChange }) {
   const hoy = new Date().toISOString().slice(0, 10);
+
+  const { setNuevaFicha, guardarFicha } = useClienta();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     nombreCompleto: "",
     fechaNacimiento: "",
     telefono: "",
     fechaAtencion: hoy,
-    servicio: "lifting",
+    servicios: [],
 
     embarazadaLactancia: "no",
     alergias: "no",
@@ -23,7 +28,6 @@ export default function FormularioDatosBasicos({ onChange }) {
     reaccionAdversa: "no",
     reaccionDetalle: "",
     lentesContacto: "no",
-
     observacionesProfesional: "",
   });
 
@@ -41,7 +45,47 @@ export default function FormularioDatosBasicos({ onChange }) {
     setForm((p) => ({ ...p, [name]: value }));
   }
 
-  /* === Estilos base iguales a tu ficha de Extensiones === */
+  async function handleConfirmarDatos() {
+    if (!form.nombreCompleto.trim()) {
+      toast.error("Ingresa el nombre completo");
+      return;
+    }
+    if (!form.telefono.trim()) {
+      toast.error("Ingresa el teléfono");
+      return;
+    }
+    if (!form.fechaNacimiento) {
+      toast.error("Ingresa la fecha de nacimiento");
+      return;
+    }
+
+    const fichaFinal = { ...form, ...normalizados };
+    console.log("GUARDANDO FICHA:", fichaFinal);
+
+    try {
+      const clientaId = await guardarFicha(fichaFinal);
+      console.log("CLIENTA CREADA ID:", clientaId);
+
+      setNuevaFicha({
+        id: clientaId,
+        ...fichaFinal,
+        servicios: [],
+      });
+
+      toast.success("Ficha guardada correctamente ✨");
+
+      navigate("/seleccionar-servicio", {
+        state: { clienta: { id: clientaId, ...fichaFinal } },
+      });
+    } catch (error) {
+      console.error("ERROR AL GUARDAR:", error);
+      if (error.message === "DUPLICADA") {
+        toast.error("Esta clienta ya existe en el sistema");
+      } else {
+        toast.error("Ocurrió un error al guardar la ficha");
+      }
+    }
+  }
 
   const pageStyle = {
     backgroundColor: "#fde2e4",
@@ -84,9 +128,22 @@ export default function FormularioDatosBasicos({ onChange }) {
     backgroundColor: "#fff0f7",
   };
 
+  const subTitleStyle = {
+    fontSize: "18px",
+    margin: "32px 0 12px",
+    color: "#db2777",
+    fontWeight: "600",
+    textAlign: "left",
+  };
+
+  const gridMedicosStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "20px",
+  };
+
   return (
     <div style={pageStyle}>
-      {/* 🔥 ENCABEZADO */}
       <div style={headerStyle}>
         <h1 style={{ fontSize: "32px", margin: 0, fontWeight: "700" }}>
           Datos Básicos de la Clienta 👩🏻‍🦰
@@ -96,7 +153,6 @@ export default function FormularioDatosBasicos({ onChange }) {
         </p>
       </div>
 
-      {/* 🔥 TARJETA BLANCA CENTRAL */}
       <div style={cardStyle}>
         <h2
           style={{
@@ -109,7 +165,6 @@ export default function FormularioDatosBasicos({ onChange }) {
           Información general
         </h2>
 
-        {/* FORMULARIO */}
         <div style={{ display: "grid", gap: "20px" }}>
           {/* Nombre */}
           <label>
@@ -161,64 +216,26 @@ export default function FormularioDatosBasicos({ onChange }) {
             </label>
           </div>
 
-          {/* Servicio */}
-          <label>
-            Servicio solicitado
-            <select
-              style={selectStyle}
-              value={form.servicio}
-              onChange={(e) => setCampo("servicio", e.target.value)}
-            >
-              <option value="lifting">Lifting de pestañas</option>
-              <option value="extensiones">Extensiones de pestañas</option>
-              <option value="depilacion">Depilación facial</option>
-              <option value="limpieza">Limpieza facial</option>
-              <option value="hydrogloss">Hydrogloss</option>
-              <option value="masaje_reductivo">Masaje reductivo</option>
-              <option value="masaje_relajante">Masaje relajante</option>
-              <option value="laminado">Laminado de cejas</option>
-            </select>
-          </label>
+          {/* DATOS MÉDICOS */}
+          <h3 style={subTitleStyle}>Datos médicos relevantes 🩺</h3>
 
-          {/* Título datos médicos */}
-          <h3
-            style={{
-              fontSize: "18px",
-              marginTop: "10px",
-              marginBottom: "10px",
-              color: "#db2777",
-              textAlign: "center",
-              fontWeight: "600",
-            }}
-          >
-            Datos médicos relevantes 🩺
-          </h3>
-
-          {/* === SECCION MÉDICA === */}
-          {/* Fila 1 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "20px",
-            }}
-          >
-            {/* Embarazo */}
+          <div style={gridMedicosStyle}>
             <label>
-              Embarazo o lactancia
+              ¿Embarazada o en lactancia?
               <select
                 style={selectStyle}
                 value={form.embarazadaLactancia}
-                onChange={(e) => setCampo("embarazadaLactancia", e.target.value)}
+                onChange={(e) =>
+                  setCampo("embarazadaLactancia", e.target.value)
+                }
               >
                 <option value="no">No</option>
                 <option value="si">Sí</option>
               </select>
             </label>
 
-            {/* Alergias */}
             <label>
-              Alergias
+              ¿Presenta alergias?
               <select
                 style={selectStyle}
                 value={form.alergias}
@@ -227,20 +244,10 @@ export default function FormularioDatosBasicos({ onChange }) {
                 <option value="no">No</option>
                 <option value="si">Sí</option>
               </select>
-
-              {form.alergias === "si" && (
-                <input
-                  style={{ ...inputStyle, marginTop: "8px" }}
-                  value={form.alergiasDetalle}
-                  onChange={(e) => setCampo("alergiasDetalle", e.target.value)}
-                  placeholder="Indicar alergia"
-                />
-              )}
             </label>
 
-            {/* Medicamentos */}
             <label>
-              Medicamentos
+              ¿Toma medicamentos?
               <select
                 style={selectStyle}
                 value={form.medicamentos}
@@ -249,30 +256,10 @@ export default function FormularioDatosBasicos({ onChange }) {
                 <option value="no">No</option>
                 <option value="si">Sí</option>
               </select>
-
-              {form.medicamentos === "si" && (
-                <input
-                  style={{ ...inputStyle, marginTop: "8px" }}
-                  value={form.medicamentosDetalle}
-                  onChange={(e) =>
-                    setCampo("medicamentosDetalle", e.target.value)
-                  }
-                  placeholder="¿Cuáles?"
-                />
-              )}
             </label>
-          </div>
 
-          {/* Fila 2 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "20px",
-            }}
-          >
             <label>
-              Cirugías o tratamientos
+              Cirugías o tratamientos recientes
               <select
                 style={selectStyle}
                 value={form.cirugiasTratamientos}
@@ -283,28 +270,20 @@ export default function FormularioDatosBasicos({ onChange }) {
                 <option value="no">No</option>
                 <option value="si">Sí</option>
               </select>
-              {form.cirugiasTratamientos === "si" && (
-                <input
-                  style={{ ...inputStyle, marginTop: "8px" }}
-                  value={form.cirugiasDetalle}
-                  onChange={(e) => setCampo("cirugiasDetalle", e.target.value)}
-                  placeholder="Indicar detalle"
-                />
-              )}
             </label>
 
             <label>
-              Enfermedad de la piel
+              Enfermedad de la piel diagnosticada
               <input
                 style={inputStyle}
                 value={form.enfermedadPiel}
                 onChange={(e) => setCampo("enfermedadPiel", e.target.value)}
-                placeholder="Acné, rosácea…"
+                placeholder="Ej: dermatitis, psoriasis, rosácea"
               />
             </label>
 
             <label>
-              Retinol / ácidos
+              ¿Usa retinol o ácidos en su rutina?
               <select
                 style={selectStyle}
                 value={form.retinolAcidos}
@@ -314,18 +293,9 @@ export default function FormularioDatosBasicos({ onChange }) {
                 <option value="si">Sí</option>
               </select>
             </label>
-          </div>
 
-          {/* Fila 3 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "20px",
-            }}
-          >
             <label>
-              Reacción adversa
+              ¿Ha tenido reacción adversa en otros tratamientos?
               <select
                 style={selectStyle}
                 value={form.reaccionAdversa}
@@ -334,20 +304,10 @@ export default function FormularioDatosBasicos({ onChange }) {
                 <option value="no">No</option>
                 <option value="si">Sí</option>
               </select>
-              {form.reaccionAdversa === "si" && (
-                <input
-                  style={{ ...inputStyle, marginTop: "8px" }}
-                  value={form.reaccionDetalle}
-                  onChange={(e) =>
-                    setCampo("reaccionDetalle", e.target.value)
-                  }
-                  placeholder="¿Cuál?"
-                />
-              )}
             </label>
 
             <label>
-              Lentes de contacto
+              ¿Usa lentes de contacto?
               <select
                 style={selectStyle}
                 value={form.lentesContacto}
@@ -359,20 +319,99 @@ export default function FormularioDatosBasicos({ onChange }) {
             </label>
 
             <label>
-              Observaciones
+              Observaciones del profesional
               <textarea
-                rows={3}
-                style={{ ...inputStyle, height: "100px", resize: "none" }}
+                style={{ ...inputStyle, minHeight: 80 }}
                 value={form.observacionesProfesional}
                 onChange={(e) =>
                   setCampo("observacionesProfesional", e.target.value)
                 }
+                placeholder="Notas importantes para el procedimiento"
               />
             </label>
+          </div>
+
+          {form.alergias === "si" && (
+            <label>
+              Detalle alergias
+              <input
+                style={inputStyle}
+                value={form.alergiasDetalle}
+                onChange={(e) => setCampo("alergiasDetalle", e.target.value)}
+                placeholder="Medicamentos, látex, tintes..."
+              />
+            </label>
+          )}
+
+          {form.medicamentos === "si" && (
+            <label>
+              Detalle medicamentos
+              <input
+                style={inputStyle}
+                value={form.medicamentosDetalle}
+                onChange={(e) =>
+                  setCampo("medicamentosDetalle", e.target.value)
+                }
+                placeholder="Nombre y dosis"
+              />
+            </label>
+          )}
+
+          {form.cirugiasTratamientos === "si" && (
+            <label>
+              Detalle cirugías / tratamientos
+              <input
+                style={inputStyle}
+                value={form.cirugiasDetalle}
+                onChange={(e) => setCampo("cirugiasDetalle", e.target.value)}
+              />
+            </label>
+          )}
+
+          {form.reaccionAdversa === "si" && (
+            <label>
+              Detalle reacción adversa
+              <input
+                style={inputStyle}
+                value={form.reaccionDetalle}
+                onChange={(e) => setCampo("reaccionDetalle", e.target.value)}
+              />
+            </label>
+          )}
+
+          <div
+            style={{ marginTop: 30, display: "flex", justifyContent: "center" }}
+          >
+            <button
+              type="button"
+              onClick={handleConfirmarDatos}
+              style={{
+                background: "linear-gradient(90deg, #f472b6, #db2777)",
+                color: "white",
+                border: "none",
+                borderRadius: "999px",
+                padding: "10px 32px",
+                fontSize: "16px",
+                cursor: "pointer",
+                fontWeight: "600",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
+              }}
+            >
+              Guardar y continuar
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
 

@@ -9,16 +9,16 @@ export default function BasicosPage() {
 
   const { setNuevaFicha } = useClienta();
 
-  // Puedes mantener esta función por si luego quieres usarla,
-  // pero ya no se llama desde ningún botón.
   const handleGuardarYContinuar = () => {
     if (!datosLocales) {
       alert("Primero completa y guarda los datos básicos de la clienta.");
       return;
     }
 
+    // Guardas en el contexto (por si lo necesitas después)
     setNuevaFicha(datosLocales);
 
+    // Pasas a la pantalla de selección de servicio con la clienta en state
     navigate("/seleccionar-servicio", {
       state: { clienta: datosLocales },
     });
@@ -80,7 +80,14 @@ export default function BasicosPage() {
               >
                 Volver
               </Link>
-              {/* Aquí YA NO hay botón Guardar y continuar */}
+
+              <button
+                className="btn-primary"
+                style={{ width: 200, height: 48 }}
+                onClick={handleGuardarYContinuar}
+              >
+                Guardar y continuar
+              </button>
             </div>
           </div>
         </div>
@@ -88,10 +95,3 @@ export default function BasicosPage() {
     </div>
   );
 }
-
-
-
-
-
-
-

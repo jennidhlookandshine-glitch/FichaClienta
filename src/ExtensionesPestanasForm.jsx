@@ -1,11 +1,35 @@
-import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useContext, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ClientaContext } from "./ClientaContext";
 import MapaExtensiones from "./MapaExtensiones";
+import toast from "react-hot-toast";
 
 export default function ExtensionesForm() {
   const navigate = useNavigate();
-  const { setNuevaFicha } = useContext(ClientaContext);
+  const location = useLocation();
+  const {
+    nuevaFicha,
+    setNuevaFicha,
+    agregarServicio,
+    editarServicio,
+  } = useContext(ClientaContext);
+
+  // Puede venir del flujo nuevo (nuevaFicha) o desde ficha existente (state.clienta)
+  const clientaDesdeState = location.state?.clienta || null;
+  const servicioEditar = location.state?.servicio || null;
+  const indexEditar = location.state?.index ?? null;
+  const modo = location.state?.modo || "crear";
+
+  const clientaActiva = clientaDesdeState || nuevaFicha;
+
+  // Si no hay ninguna clienta, redirigir
+  useEffect(() => {
+    if (!clientaActiva || !clientaActiva.id) {
+      navigate("/clientas");
+    }
+  }, [clientaActiva, navigate]);
+
+  if (!clientaActiva || !clientaActiva.id) return null;
 
   const [form, setForm] = useState({
     tecnica: "",
@@ -17,40 +41,127 @@ export default function ExtensionesForm() {
     densidad: "",
     adhesive: "",
     observaciones: "",
-    fotoAntes: null,
-    fotoDespues: null,
     mapaExtensiones: "",
   });
 
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
-  function handleChange(e) {
-    const { name, value, type, files } = e.target;
+  // Precargar datos si estamos editando
+  useEffect(() => {
+    if (modo === "editar" && servicioEditar?.detalle) {
+      const d = servicioEditar.detalle;
+      setForm({
+        tecnica: d.tecnica || "",
+        efecto: d.efecto || "",
+        curvatura: d.curvatura || "",
+        diametro: d.diametro || "",
+        longitudes: d.longitudes || "",
+        mapping: d.mapping || "",
+        densidad: d.densidad || "",
+        adhesive: d.adhesive || "",
+        observaciones: d.observaciones || "",
+        mapaExtensiones: d.mapaExtensiones || "",
+      });
+    }
+  }, [modo, servicioEditar]);
 
+  function handleChange(e) {
+    const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === "file" ? files?.[0] || null : value,
+      [name]: value,
     }));
   }
 
-  function handleGuardar() {
+  const handleGuardar = async () => {
     if (!form.tecnica) {
       setError("Selecciona la técnica");
+      toast.error("Selecciona la técnica de extensiones.");
+      return;
+    }
+
+    if (!clientaActiva || !clientaActiva.id) {
+      toast.error("Primero debes seleccionar una clienta 😅");
+      navigate("/clientas");
       return;
     }
 
     setError("");
     setGuardando(true);
 
-    setNuevaFicha((prev) => ({
-      ...prev,
-      extensiones: form,
-    }));
+    const servicio = {
+      servicio: "Extensiones de pestañas",
+      fecha:
+        modo === "editar" && servicioEditar?.fecha
+          ? servicioEditar.fecha
+          : new Date().toISOString(),
+      detalle: { ...form },
+    };
 
-    alert("Ficha guardada correctamente 🎉");
-    navigate("/final-ficha");
-  }
+    try {
+      if (modo === "editar" && indexEditar !== null) {
+        // Editar servicio existente
+        await editarServicio(clientaActiva.id, indexEditar, servicio);
+      } else {
+        // Crear nuevo servicio
+        await agregarServicio(clientaActiva.id, servicio);
+
+        // Si es la nueva ficha, actualizar contexto local
+        if (nuevaFicha && clientaActiva.id === nuevaFicha.id) {
+          setNuevaFicha((prev) => ({
+            ...prev,
+            servicios: [...(prev?.servicios || []), servicio],
+            extensiones: form,
+            servicioResumen: "Extensiones de pestañas",
+          }));
+        }
+      }
+
+      toast.success(
+        modo === "editar"
+          ? "Ficha de extensiones actualizada ✨"
+          : "Ficha de extensiones guardada ✨"
+      );
+
+      // Si venías desde una ficha existente, volver a la ficha; si no, ir al final
+      if (clientaDesdeState) {
+        navigate(`/ficha/${clientaActiva.id}`, {
+          state: { clienta: clientaActiva },
+        });
+      } else {
+        navigate("/ficha/final");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Error al guardar la ficha. Intenta nuevamente.");
+      toast.error("Error al guardar la ficha de extensiones.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #f9a8d4",
+    marginTop: "6px",
+    fontSize: "14px",
+  };
+  const selectStyle = { ...inputStyle, backgroundColor: "#fff0f7" };
+  const botonGuardar = {
+    gridColumn: "1 / 3",
+    background: "linear-gradient(90deg, #f472b6, #db2777)",
+    color: "white",
+    border: "none",
+    borderRadius: "30px",
+    padding: "12px 0",
+    fontSize: "16px",
+    cursor: "pointer",
+    fontWeight: "600",
+    marginTop: "10px",
+  };
 
   return (
     <div
@@ -73,9 +184,7 @@ export default function ExtensionesForm() {
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}
       >
-        <h1
-          style={{ fontSize: "32px", margin: 0, fontWeight: "700" }}
-        >
+        <h1 style={{ fontSize: "32px", margin: 0, fontWeight: "700" }}>
           Ficha de Extensiones de Pestañas 👁️
         </h1>
         <p
@@ -89,6 +198,18 @@ export default function ExtensionesForm() {
         </p>
       </div>
 
+      {error && (
+        <p
+          style={{
+            color: "red",
+            textAlign: "center",
+            fontWeight: "600",
+          }}
+        >
+          {error}
+        </p>
+      )}
+
       <div
         style={{
           background: "white",
@@ -99,29 +220,6 @@ export default function ExtensionesForm() {
           boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
         }}
       >
-        <h2
-          style={{
-            fontSize: "20px",
-            marginBottom: "20px",
-            color: "#db2777",
-            textAlign: "center",
-          }}
-        >
-          Detalles del servicio
-        </h2>
-
-        {error && (
-          <p
-            style={{
-              color: "red",
-              textAlign: "center",
-              fontWeight: "600",
-            }}
-          >
-            {error}
-          </p>
-        )}
-
         <form
           onSubmit={(e) => e.preventDefault()}
           style={{
@@ -240,8 +338,8 @@ export default function ExtensionesForm() {
             Adhesivo:
             <input
               type="text"
-              name="adhesivo"
-              value={form.adhesivo}
+              name="adhesive"
+              value={form.adhesive}
               onChange={handleChange}
               placeholder="Nombre o marca"
               style={inputStyle}
@@ -265,27 +363,13 @@ export default function ExtensionesForm() {
             />
           </label>
 
-          <label>
-            Foto antes:
-            <input type="file" name="fotoAntes" onChange={handleChange} />
-          </label>
-
-          <label>
-            Foto después:
-            <input type="file" name="fotoDespues" onChange={handleChange} />
-          </label>
-
-          {/* Mapa */}
           <div style={{ gridColumn: "1 / 3", marginTop: "20px" }}>
             <h3 className="text-pink-600 font-semibold mb-2">
               Mapa de extensiones
             </h3>
             <MapaExtensiones
               onGuardar={(dataUrl) =>
-                setForm((prev) => ({
-                  ...prev,
-                  mapaExtensiones: dataUrl,
-                }))
+                setForm((prev) => ({ ...prev, mapaExtensiones: dataUrl }))
               }
             />
           </div>
@@ -296,34 +380,16 @@ export default function ExtensionesForm() {
             style={botonGuardar}
             disabled={guardando}
           >
-            {guardando ? "Guardando..." : "Guardar ficha"}
+            {guardando
+              ? modo === "editar"
+                ? "Actualizando ficha..."
+                : "Guardando ficha..."
+              : modo === "editar"
+              ? "Actualizar ficha"
+              : "Guardar ficha"}
           </button>
         </form>
       </div>
     </div>
   );
 }
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: "8px",
-  border: "1px solid #f9a8d4",
-  marginTop: "6px",
-  fontSize: "14px",
-};
-
-const selectStyle = { ...inputStyle, backgroundColor: "#fff0f7" };
-
-const botonGuardar = {
-  gridColumn: "1 / 3",
-  background: "linear-gradient(90deg, #f472b6, #db2777)",
-  color: "white",
-  border: "none",
-  borderRadius: "30px",
-  padding: "12px 0",
-  fontSize: "16px",
-  cursor: "pointer",
-  fontWeight: "600",
-  marginTop: "10px",
-};

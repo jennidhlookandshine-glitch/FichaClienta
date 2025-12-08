@@ -1,9 +1,35 @@
-import React, { useState } from "react";
-import { storage, db } from "./firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import React, { useState, useContext, useEffect } from "react";
+import { ClientaContext } from "./ClientaContext";
+import { useNavigate, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
 
 export default function HydroglossLabiosForm() {
+  const {
+    nuevaFicha,
+    setNuevaFicha,
+    agregarServicio,
+    editarServicio,
+  } = useContext(ClientaContext);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Puede venir del flujo nuevo (nuevaFicha) o desde ficha existente (state.clienta)
+  const clientaDesdeState = location.state?.clienta || null;
+  const servicioEditar = location.state?.servicio || null;
+  const indexEditar = location.state?.index ?? null;
+  const modo = location.state?.modo || "crear";
+
+  const clientaActiva = clientaDesdeState || nuevaFicha;
+
+  // Si no hay ninguna clienta, redirigir
+  useEffect(() => {
+    if (!clientaActiva || !clientaActiva.id) {
+      navigate("/clientas");
+    }
+  }, [clientaActiva, navigate]);
+
+  if (!clientaActiva || !clientaActiva.id) return null;
+
   const [form, setForm] = useState({
     colorTono: "",
     tipoLabios: "",
@@ -12,82 +38,107 @@ export default function HydroglossLabiosForm() {
     exfoliacion: false,
     ah: false,
     cartucho: "",
-    colorCartucho: "",
     gloss: false,
     mascarilla: false,
     sesiones: [],
     observaciones: "",
-    fotoAntes: null,
-    fotoDespues: null,
   });
 
   const [guardando, setGuardando] = useState(false);
 
+  // Precargar datos si estamos editando
+  useEffect(() => {
+    if (modo === "editar" && servicioEditar?.detalle) {
+      const d = servicioEditar.detalle;
+      setForm({
+        colorTono: d.colorTono || "",
+        tipoLabios: d.tipoLabios || "",
+        estadoInicial: d.estadoInicial || "",
+        estadoFinal: d.estadoFinal || "",
+        exfoliacion: !!d.exfoliacion,
+        ah: !!d.ah,
+        cartucho: d.cartucho || "",
+        gloss: !!d.gloss,
+        mascarilla: !!d.mascarilla,
+        sesiones: Array.isArray(d.sesiones) ? d.sesiones : [],
+        observaciones: d.observaciones || "",
+      });
+    }
+  }, [modo, servicioEditar]);
+
   function handleChange(e) {
-    const { name, value, type, checked, files } = e.target;
+    const { name, value, type, checked } = e.target;
     setForm((p) => ({
       ...p,
-      [name]:
-        type === "file"
-          ? files?.[0] || null
-          : type === "checkbox"
-          ? checked
-          : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   }
 
   function handleSesionChange(index) {
-    const newSesiones = [...form.sesiones];
+    const newSesiones = [...(form.sesiones || [])];
     newSesiones[index] = !newSesiones[index];
     setForm((p) => ({ ...p, sesiones: newSesiones }));
   }
 
-  async function subir(carpeta, file) {
-    if (!file) return null;
-    const limpio = (file.name || "foto").replace(/\s+/g, "_");
-    const r = ref(storage, `${carpeta}/${Date.now()}_${limpio}`);
-    await uploadBytes(r, file);
-    return await getDownloadURL(r);
-  }
-
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!clientaActiva || !clientaActiva.id) {
+      toast.error("Primero debes seleccionar una clienta 😅");
+      navigate("/clientas");
+      return;
+    }
+
+    setGuardando(true);
+
     try {
-      setGuardando(true);
-      const urlAntes = await subir("hydrogloss/antes", form.fotoAntes);
-      const urlDespues = await subir("hydrogloss/despues", form.fotoDespues);
+      const servicio = {
+        servicio: "Hydrogloss",
+        fecha:
+          modo === "editar" && servicioEditar?.fecha
+            ? servicioEditar.fecha
+            : new Date().toISOString(),
+        detalle: { ...form },
+      };
 
-      await addDoc(collection(db, "hydrogloss"), {
-        ...form,
-        fotoAntesURL: urlAntes || "",
-        fotoDespuesURL: urlDespues || "",
-        creadoEn: serverTimestamp(),
-      });
+      if (modo === "editar" && indexEditar !== null) {
+        // Editar servicio existente
+        await editarServicio(clientaActiva.id, indexEditar, servicio);
+      } else {
+        // Crear servicio nuevo
+        await agregarServicio(clientaActiva.id, servicio);
 
-      alert("Hydrogloss guardado");
-      setForm({
-        colorTono: "",
-        tipoLabios: "",
-        estadoInicial: "",
-        estadoFinal: "",
-        exfoliacion: false,
-        ah: false,
-        cartucho: "",
-        colorCartucho: "",
-        gloss: false,
-        mascarilla: false,
-        sesiones: [],
-        observaciones: "",
-        fotoAntes: null,
-        fotoDespues: null,
-      });
+        // Si es la nueva ficha, actualizar contexto local
+        if (nuevaFicha && clientaActiva.id === nuevaFicha.id) {
+          setNuevaFicha((prev) => ({
+            ...prev,
+            servicios: [...(prev?.servicios || []), servicio],
+            hydrogloss: form,
+            servicioResumen: "Hydrogloss",
+          }));
+        }
+      }
+
+      toast.success(
+        modo === "editar"
+          ? "Hydrogloss actualizado correctamente ✨"
+          : "Hydrogloss guardado correctamente ✨"
+      );
+      // Si venías desde ficha existente, vuelve a la ficha; si no, paso final
+      if (clientaDesdeState) {
+        navigate(`/ficha/${clientaActiva.id}`, {
+          state: { clienta: clientaActiva },
+        });
+      } else {
+        navigate("/ficha/final");
+      }
     } catch (e) {
       console.error(e);
-      alert("Error al guardar hydrogloss");
+      toast.error("Error al guardar Hydrogloss");
     } finally {
       setGuardando(false);
     }
-  }
+  };
 
   const inputStyle = {
     width: "100%",
@@ -97,15 +148,8 @@ export default function HydroglossLabiosForm() {
     marginTop: "6px",
     fontSize: "14px",
   };
-
-  const selectStyle = {
-    ...inputStyle,
-    backgroundColor: "#fff0f7",
-  };
-
-  const checkboxStyle = {
-    marginRight: "8px",
-  };
+  const selectStyle = { ...inputStyle, backgroundColor: "#fff0f7" };
+  const checkboxStyle = { marginRight: "8px" };
 
   return (
     <div
@@ -117,7 +161,6 @@ export default function HydroglossLabiosForm() {
         color: "#333",
       }}
     >
-      {/* Encabezado */}
       <div
         style={{
           background: "linear-gradient(90deg, #f9a8d4, #f472b6)",
@@ -137,7 +180,6 @@ export default function HydroglossLabiosForm() {
         </p>
       </div>
 
-      {/* Formulario */}
       <div
         style={{
           background: "white",
@@ -156,7 +198,6 @@ export default function HydroglossLabiosForm() {
             gap: "20px 30px",
           }}
         >
-
           <label>
             Tipo de labios:
             <select
@@ -193,7 +234,6 @@ export default function HydroglossLabiosForm() {
             />
           </label>
 
-          {/* Checkboxes */}
           <div
             style={{
               gridColumn: "1 / 3",
@@ -245,7 +285,6 @@ export default function HydroglossLabiosForm() {
             </label>
           </div>
 
-          {/* Cartucho y color */}
           <label>
             Cartucho:
             <select
@@ -264,10 +303,10 @@ export default function HydroglossLabiosForm() {
           </label>
 
           <label>
-            Color Tinte:
+            Color Tono:
             <select
-              name="colorTinte"
-              value={form.colorTinte}
+              name="colorTono"
+              value={form.colorTono}
               onChange={handleChange}
               style={selectStyle}
             >
@@ -278,7 +317,6 @@ export default function HydroglossLabiosForm() {
             </select>
           </label>
 
-          {/* Sesiones */}
           <label style={{ gridColumn: "1 / 3" }}>
             Sesiones:
             <div
@@ -303,41 +341,21 @@ export default function HydroglossLabiosForm() {
             </div>
           </label>
 
-          {/* Observaciones */}
           <label style={{ gridColumn: "1 / 3" }}>
             Observaciones:
             <textarea
               name="observaciones"
               value={form.observaciones}
               onChange={handleChange}
-              style={{ ...inputStyle, resize: "none", width: "100%", height: "80px" }}
+              style={{
+                ...inputStyle,
+                resize: "none",
+                width: "100%",
+                height: "80px",
+              }}
             />
           </label>
 
-          {/* Fotos */}
-          <label>
-            Foto antes:
-            <input
-              type="file"
-              name="fotoAntes"
-              accept="image/*"
-              onChange={handleChange}
-              style={inputStyle}
-            />
-          </label>
-
-          <label>
-            Foto después:
-            <input
-              type="file"
-              name="fotoDespues"
-              accept="image/*"
-              onChange={handleChange}
-              style={inputStyle}
-            />
-          </label>
-
-          {/* Botón */}
           <button
             type="submit"
             disabled={guardando}
@@ -354,13 +372,22 @@ export default function HydroglossLabiosForm() {
               boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
             }}
           >
-            {guardando ? "Guardando..." : "Guardar Hydrogloss"}
+            {guardando
+              ? modo === "editar"
+                ? "Actualizando ficha..."
+                : "Guardando ficha..."
+              : modo === "editar"
+              ? "Actualizar ficha"
+              : "Guardar ficha"}
           </button>
         </form>
       </div>
     </div>
   );
 }
+
+
+
 
 
 

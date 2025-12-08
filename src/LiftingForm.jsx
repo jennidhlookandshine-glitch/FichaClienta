@@ -1,15 +1,42 @@
-import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useContext, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ClientaContext } from "./ClientaContext";
+import toast from "react-hot-toast";
+
+// Estilos para inputs y selects
+const inputStyle = {
+  width: "100%",
+  padding: "10px",
+  borderRadius: "8px",
+  border: "1px solid #f9a8d4",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+
+const selectStyle = { ...inputStyle, backgroundColor: "#fff0f7" };
 
 export default function LiftingForm() {
   const navigate = useNavigate();
-  const { setNuevaFicha } = useContext(ClientaContext);
+  const location = useLocation();
+  const {
+    nuevaFicha,
+    setNuevaFicha,
+    agregarServicio,
+    editarServicio,
+  } = useContext(ClientaContext);
+
+  // Puede venir del flujo nuevo (nuevaFicha) o desde la ficha existente
+  const clientaDesdeState = location.state?.clienta || null;
+  const servicioEditar = location.state?.servicio || null;
+  const indexEditar = location.state?.index ?? null;
+  const modo = location.state?.modo || "crear";
+
+  const clientaActiva = clientaDesdeState || nuevaFicha;
 
   const [form, setForm] = useState({
     tipoOjo: "",
     tamanoPestanas: "",
-    molde: "",
+    moldeTalla: "",
     productoPaso1: "",
     tiempoPaso1: "",
     productoPaso2: "",
@@ -17,170 +44,412 @@ export default function LiftingForm() {
     tinte: "",
     tiempoTotal: "",
     observaciones: "",
-    fotoAntes: null,
-    fotoDespues: null,
   });
 
-  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  // Precargar datos si estamos editando
+  useEffect(() => {
+    if (modo === "editar" && servicioEditar?.detalle) {
+      const d = servicioEditar.detalle;
+      setForm({
+        tipoOjo: d.tipoOjo || "",
+        tamanoPestanas: d.tamanoPestanas || "",
+        moldeTalla: d.moldeTalla || "",
+        productoPaso1: d.productoPaso1 || "",
+        tiempoPaso1: d.tiempoPaso1 || "",
+        productoPaso2: d.productoPaso2 || "",
+        tiempoPaso2: d.tiempoPaso2 || "",
+        tinte: d.tinte || "",
+        tiempoTotal: d.tiempoTotal || "",
+        observaciones: d.observaciones || "",
+      });
+    }
+  }, [modo, servicioEditar]);
+
+  // Si no hay clienta, redirigir
+  useEffect(() => {
+    if (!clientaActiva || !clientaActiva.id) {
+      navigate("/clientas");
+    }
+  }, [clientaActiva, navigate]);
+
+  if (!clientaActiva || !clientaActiva.id) return null;
 
   function handleChange(e) {
-    const { name, value, type, files } = e.target;
+    const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === "file" ? files?.[0] || null : value,
+      [name]: value,
     }));
   }
 
-  function handleGuardar() {
-    // Validación básica
-    if (!form.tipoOjo || !form.productoPaso1) {
-      setError("Completa al menos el tipo de ojo y el producto del paso 1.");
+  function handleTinteChange(e) {
+    const { value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      tinte: value,
+    }));
+  }
+
+  // Guardar servicio de Lifting
+  const handleGuardar = async () => {
+    if (!clientaActiva || !clientaActiva.id) {
+      toast.error("Primero debes seleccionar una clienta 😅");
+      navigate("/clientas");
+      return;
+    }
+
+    if (!form.tipoOjo || !form.productoPaso1 || !form.moldeTalla) {
+      setError(
+        "Completa al menos tipo de ojo, molde usado y producto del paso 1."
+      );
+      toast.error("Faltan datos importantes del lifting");
       return;
     }
 
     setError("");
     setGuardando(true);
 
-    setNuevaFicha((prev) => ({
-      ...prev,
-      lifting: form,
-    }));
+    const servicio = {
+      servicio: "Lifting de pestañas",
+      fecha:
+        modo === "editar" && servicioEditar?.fecha
+          ? servicioEditar.fecha
+          : new Date().toISOString(),
+      detalle: {
+        ...form,
+      },
+    };
 
-    navigate("/ficha/final");
-  }
+    try {
+      if (modo === "editar" && indexEditar !== null) {
+        // Editar servicio existente
+        await editarServicio(clientaActiva.id, indexEditar, servicio);
+      } else {
+        // Crear nuevo servicio
+        await agregarServicio(clientaActiva.id, servicio);
+
+        // Si la clienta activa es la nueva ficha, actualiza su contexto local
+        if (nuevaFicha && clientaActiva.id === nuevaFicha.id) {
+          setNuevaFicha((prev) => ({
+            ...prev,
+            servicios: [...(prev?.servicios || []), servicio],
+            lifting: form,
+            servicioResumen: "Lifting de pestañas",
+          }));
+        }
+      }
+
+      toast.success(
+        modo === "editar"
+          ? "Lifting actualizado correctamente ✨"
+          : "Lifting guardado correctamente ✨"
+      );
+
+      // Si venías desde una ficha existente, vuelve a la ficha; si no, paso final
+      if (clientaDesdeState) {
+        navigate(`/ficha/${clientaActiva.id}`, {
+          state: { clienta: clientaActiva },
+        });
+      } else {
+        navigate("/ficha/final");
+      }
+    } catch (err) {
+      console.error("❌ ERROR al guardar lifting:", err);
+      toast.error("Ocurrió un error al guardar el lifting");
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   return (
-    <div style={{ backgroundColor: "#fde2e4", minHeight: "100vh", padding: "40px", fontFamily: "'Poppins', sans-serif", color: "#333" }}>
-      <div style={{ background: "linear-gradient(90deg, #f9a8d4, #f472b6)", color: "white", padding: "24px 40px", borderRadius: "20px", textAlign: "center", marginBottom: "40px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-        <h1 style={{ fontSize: "32px", margin: 0, fontWeight: "700" }}>Lifting de Pestañas 💖</h1>
-        <p style={{ marginTop: "8px", fontSize: "16px", opacity: 0.95 }}>Registra los productos, moldes y observaciones del servicio</p>
+    <div
+      style={{
+        backgroundColor: "#ffe4ec",
+        minHeight: "100vh",
+        padding: "40px",
+        fontFamily: "'Poppins', sans-serif",
+        color: "#333",
+      }}
+    >
+      {/* Cabecera rosa */}
+      <div
+        style={{
+          maxWidth: "100%",
+          margin: "0 auto 40px",
+          textAlign: "center",
+          color: "white",
+          padding: "24px 0",
+          background: "linear-gradient(90deg, #ff7ac4, #ff3f8e)",
+        }}
+      >
+        <h1>Ficha de Lifting de Pestañas 💖</h1>
+        <p>Registra los productos, moldes y observaciones del servicio</p>
       </div>
 
-      <div style={{ background: "white", padding: "30px 40px", borderRadius: "16px", maxWidth: "900px", margin: "0 auto", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
-        <h2 style={{ fontSize: "20px", marginBottom: "20px", color: "#db2777", textAlign: "center" }}>Detalles del servicio</h2>
+      {/* Tarjeta blanca */}
+      <div
+        style={{
+          background: "white",
+          padding: "30px 40px 40px",
+          borderRadius: "16px",
+          maxWidth: "900px",
+          margin: "0 auto",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h2 style={{ textAlign: "center", marginBottom: "24px" }}>
+          Detalles del servicio
+        </h2>
 
-        {error && <p style={{ color: "red", textAlign: "center", fontWeight: 600 }}>{error}</p>}
+        {error && (
+          <p
+            style={{
+              color: "red",
+              textAlign: "center",
+              fontWeight: 600,
+            }}
+          >
+            {error}
+          </p>
+        )}
 
-        <form onSubmit={(e) => e.preventDefault()} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 30px" }}>
-          <label>
-            Tipo de ojo:
-            <select name="tipoOjo" value={form.tipoOjo} onChange={handleChange} style={selectStyle}>
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 20,
+            alignItems: "center",
+          }}
+        >
+          {/* Tipo de ojo */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Tipo de ojo:
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              name="tipoOjo"
+              value={form.tipoOjo}
+              onChange={handleChange}
+            >
               <option value="">Selecciona...</option>
               <option value="redondo">Redondo</option>
               <option value="almendrado">Almendrado</option>
-              <option value="asiático">Asiático</option>
-              <option value="caído">Caído</option>
+              <option value="asiatico">Asiático</option>
+              <option value="profundo">Profundo</option>
+              <option value="prominente">Prominente</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            Tamaño de pestañas:
-            <select name="tamanoPestanas" value={form.tamanoPestanas} onChange={handleChange} style={selectStyle}>
+          {/* Tamaño pestañas */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Tamaño de pestañas:
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              name="tamanoPestanas"
+              value={form.tamanoPestanas}
+              onChange={handleChange}
+            >
               <option value="">Selecciona...</option>
-              <option value="cortas">Cortas</option>
-              <option value="medianas">Medianas</option>
-              <option value="largas">Largas</option>
+              <option value="corto">Corto</option>
+              <option value="medio">Medio</option>
+              <option value="largo">Largo</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            Molde usado:
-            <select name="molde" value={form.molde} onChange={handleChange} style={selectStyle}>
+          {/* Moldes usados */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Moldes usados:
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              name="moldeTalla"
+              value={form.moldeTalla}
+              onChange={handleChange}
+            >
               <option value="">Selecciona...</option>
-              <option value="frozen">Frozen</option>
-              <option value="conchita">Conchita</option>
-              <option value="nube">Nube</option>
-              <option value="coreano">Coreano</option>
-              <option value="ranadura">Ranadura</option>
+              <option value="XS">XS</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            Producto paso 1:
-            <select name="productoPaso1" value={form.productoPaso1} onChange={handleChange} style={selectStyle}>
+          {/* Producto paso 1 */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Producto paso 1:
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              name="productoPaso1"
+              value={form.productoPaso1}
+              onChange={handleChange}
+            >
               <option value="">Selecciona...</option>
-              <option value="maximova">Maximova</option>
-              <option value="beautywave">Beauty Wave</option>
-              <option value="dlux">Dlux</option>
-              <option value="lomansa">Lomansa</option>
+              <option value="DLUX">DLUX</option>
+              <option value="Maximova">Maximova</option>
+              <option value="Beauty Wave">Beauty Wave</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            Tiempo (paso 1):
-            <input type="text" name="tiempoPaso1" value={form.tiempoPaso1} onChange={handleChange} style={inputStyle} />
-          </label>
+          {/* Tiempo paso 1 */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Tiempo (paso 1):
+            </label>
+            <input
+              style={{ ...inputStyle, marginTop: 4 }}
+              name="tiempoPaso1"
+              placeholder="Ej: 10 min"
+              value={form.tiempoPaso1}
+              onChange={handleChange}
+            />
+          </div>
 
-          <label>
-            Producto paso 2:
-            <select name="productoPaso2" value={form.productoPaso2} onChange={handleChange} style={selectStyle}>
+          {/* Producto paso 2 */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Producto paso 2:
+            </label>
+            <select
+              style={{ ...selectStyle, marginTop: 4 }}
+              name="productoPaso2"
+              value={form.productoPaso2}
+              onChange={handleChange}
+            >
               <option value="">Selecciona...</option>
-              <option value="maximova">Maximova</option>
-              <option value="beautywave">Beauty Wave</option>
-              <option value="dlux">Dlux</option>
-              <option value="lomansa">Lomansa</option>
+              <option value="DLUX">DLUX</option>
+              <option value="Maximova">Maximova</option>
+              <option value="Beauty Wave">Beauty Wave</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            Tiempo (paso 2):
-            <input type="text" name="tiempoPaso2" value={form.tiempoPaso2} onChange={handleChange} style={inputStyle} />
-          </label>
+          {/* Tiempo paso 2 */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Tiempo (paso 2):
+            </label>
+            <input
+              style={{ ...inputStyle, marginTop: 4 }}
+              name="tiempoPaso2"
+              placeholder="Ej: 8 min"
+              value={form.tiempoPaso2}
+              onChange={handleChange}
+            />
+          </div>
 
-          <label>
-            ¿Se utilizó tinte?
-            <div>
-              <label>
-                <input type="radio" name="tinte" value="sí" checked={form.tinte === "sí"} onChange={handleChange} /> Sí
+          {/* Tinte */}
+          <div style={{ gridColumn: "1 / 3", textAlign: "center" }}>
+            <label
+              style={{ fontSize: 13, fontWeight: 500, display: "block" }}
+            >
+              ¿Se utilizó tinte?
+            </label>
+            <div
+              style={{
+                marginTop: 6,
+                display: "flex",
+                justifyContent: "center",
+                gap: 20,
+              }}
+            >
+              <label style={{ fontSize: 13 }}>
+                <input
+                  type="radio"
+                  name="tinte"
+                  value="si"
+                  checked={form.tinte === "si"}
+                  onChange={handleTinteChange}
+                  style={{ marginRight: 4 }}
+                />
+                Sí
               </label>
-              <label style={{ marginLeft: "15px" }}>
-                <input type="radio" name="tinte" value="no" checked={form.tinte === "no"} onChange={handleChange} /> No
+              <label style={{ fontSize: 13 }}>
+                <input
+                  type="radio"
+                  name="tinte"
+                  value="no"
+                  checked={form.tinte === "no"}
+                  onChange={handleTinteChange}
+                  style={{ marginRight: 4 }}
+                />
+                No
               </label>
             </div>
-          </label>
+          </div>
 
-          <label>
-            Tiempo total (min):
-            <input type="number" name="tiempoTotal" value={form.tiempoTotal} onChange={handleChange} style={inputStyle} />
-          </label>
+          {/* Tiempo total */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Tiempo total (min):
+            </label>
+            <input
+              style={{ ...inputStyle, marginTop: 4 }}
+              name="tiempoTotal"
+              value={form.tiempoTotal}
+              onChange={handleChange}
+            />
+          </div>
 
-          <label style={{ gridColumn: "1 / 3" }}>
-            Observaciones:
-            <textarea name="observaciones" rows={3} value={form.observaciones} onChange={handleChange} style={textareaStyle} />
-          </label>
+          <div /> {/* Espacio vacío para el grid */}
 
-          <label>
-            Foto antes:
-            <input type="file" name="fotoAntes" onChange={handleChange} />
-          </label>
+          {/* Observaciones */}
+          <div style={{ gridColumn: "1 / 3" }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Resultado / Observaciones:
+            </label>
+            <textarea
+              style={{
+                ...inputStyle,
+                marginTop: 4,
+                resize: "none",
+                minHeight: "80px",
+              }}
+              name="observaciones"
+              placeholder="Escribe tus observaciones aquí..."
+              value={form.observaciones}
+              onChange={handleChange}
+            />
+          </div>
 
-          <label>
-            Foto después:
-            <input type="file" name="fotoDespues" onChange={handleChange} />
-          </label>
-
-          <button type="button" onClick={handleGuardar} disabled={guardando} style={{
-            gridColumn: "1 / 3",
-            background: "linear-gradient(90deg, #f472b6, #db2777)",
-            color: "white",
-            border: "none",
-            borderRadius: "30px",
-            padding: "12px 0",
-            fontSize: "16px",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}>
-            {guardando ? "Guardando..." : "Guardar ficha"}
+          {/* Botón Guardar */}
+          <button
+            type="button"
+            onClick={handleGuardar}
+            disabled={guardando}
+            style={{
+              gridColumn: "1 / 3",
+              marginTop: 10,
+              background: "linear-gradient(90deg, #ff7ac4, #ff3f8e)",
+              color: "white",
+              border: "none",
+              borderRadius: "30px",
+              padding: "14px",
+              fontSize: "16px",
+              cursor: guardando ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              opacity: guardando ? 0.7 : 1,
+            }}
+          >
+            {guardando
+              ? modo === "editar"
+                ? "Actualizando ficha..."
+                : "Guardando ficha..."
+              : modo === "editar"
+              ? "Actualizar ficha"
+              : "Guardar ficha"}
           </button>
         </form>
       </div>
     </div>
   );
 }
-
-const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #f9a8d4", marginTop: "6px", fontSize: "14px" };
-const selectStyle = { ...inputStyle, backgroundColor: "#fff0f7" };
-const textareaStyle = { ...inputStyle, resize: "none", width: "100%" };
-
-
