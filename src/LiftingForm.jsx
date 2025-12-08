@@ -34,17 +34,20 @@ export default function LiftingForm() {
   const clientaActiva = clientaDesdeState || nuevaFicha;
 
   const [form, setForm] = useState({
-    tipoOjo: "",
-    tamanoPestanas: "",
-    moldeTalla: "",
-    productoPaso1: "",
-    tiempoPaso1: "",
-    productoPaso2: "",
-    tiempoPaso2: "",
-    tinte: "",
-    tiempoTotal: "",
-    observaciones: "",
-  });
+  tipoOjo: "",
+  tamanoPestanas: "",
+  tipoMolde: "",
+  moldeModelo: "",
+  moldeOtro: "",      // 👈 nuevo
+  productoPaso1: "",
+  tiempoPaso1: "",
+  productoPaso2: "",
+  tiempoPaso2: "",
+  tinte: "",
+  tiempoTotal: "",
+  observaciones: "",
+});
+
 
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -56,7 +59,9 @@ export default function LiftingForm() {
       setForm({
         tipoOjo: d.tipoOjo || "",
         tamanoPestanas: d.tamanoPestanas || "",
-        moldeTalla: d.moldeTalla || "",
+        tipoMolde: d.tipoMolde || "",
+        moldeOtro: d.moldeOtro || "",
+        moldeModelo: d.moldeModelo || d.moldeTalla || "",
         productoPaso1: d.productoPaso1 || "",
         tiempoPaso1: d.tiempoPaso1 || "",
         productoPaso2: d.productoPaso2 || "",
@@ -101,9 +106,14 @@ export default function LiftingForm() {
       return;
     }
 
-    if (!form.tipoOjo || !form.productoPaso1 || !form.moldeTalla) {
+    if (
+      !form.tipoOjo ||
+      !form.productoPaso1 ||
+      !form.tipoMolde ||
+      !form.moldeModelo
+    ) {
       setError(
-        "Completa al menos tipo de ojo, molde usado y producto del paso 1."
+        "Completa al menos tipo de ojo, tipo de molde, modelo de molde y producto del paso 1."
       );
       toast.error("Faltan datos importantes del lifting");
       return;
@@ -241,7 +251,7 @@ export default function LiftingForm() {
               <option value="almendrado">Almendrado</option>
               <option value="asiatico">Asiático</option>
               <option value="profundo">Profundo</option>
-              <option value="prominente">Prominente</option>
+              <option value="prominente">caido</option>
             </select>
           </div>
 
@@ -263,23 +273,62 @@ export default function LiftingForm() {
             </select>
           </div>
 
-          {/* Moldes usados */}
+          {/* Tipo de molde */}
+<div>
+  <label style={{ fontSize: 13, fontWeight: 500 }}>
+    Tipo de molde:
+  </label>
+  <select
+    style={{ ...selectStyle, marginTop: 4 }}
+    name="tipoMolde"
+    value={form.tipoMolde}
+    onChange={handleChange}
+  >
+    <option value="">Selecciona...</option>
+    <option value="Frozen">Frozen</option>
+    <option value="Nube">Nube</option>
+    <option value="Plano">Plano</option>
+    <option value="Anatomico">Anatómico / redondo</option>
+    <option value="Otro">Otro</option>
+  </select>
+
+  {form.tipoMolde === "Otro" && (
+    <input
+      style={{ ...inputStyle, marginTop: 8 }}
+      name="moldeOtro"
+      placeholder="Especifica el molde (ej: Molde nube glitter S)"
+      value={form.moldeOtro}
+      onChange={handleChange}
+    />
+  )}
+</div>
+
+
+          {/* Modelo / talla de molde */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 500 }}>
-              Moldes usados:
+              Modelo / talla del molde:
             </label>
             <select
               style={{ ...selectStyle, marginTop: 4 }}
-              name="moldeTalla"
-              value={form.moldeTalla}
+              name="moldeModelo"
+              value={form.moldeModelo}
               onChange={handleChange}
             >
               <option value="">Selecciona...</option>
+              {/* tallas típicas Frozen / Nube */}
               <option value="XS">XS</option>
               <option value="S">S</option>
+              <option value="S+">S+</option>
               <option value="M">M</option>
+              <option value="M+">M+</option>
               <option value="L">L</option>
               <option value="XL">XL</option>
+              {/* modelos planos / anatómicos */}
+              <option value="S1">S1</option>
+              <option value="M1">M1</option>
+              <option value="L1">L1</option>
+              <option value="XL1">XL1</option>
             </select>
           </div>
 
@@ -298,6 +347,7 @@ export default function LiftingForm() {
               <option value="DLUX">DLUX</option>
               <option value="Maximova">Maximova</option>
               <option value="Beauty Wave">Beauty Wave</option>
+              <option value="My Lamination">My Lamination</option>
             </select>
           </div>
 
@@ -330,6 +380,7 @@ export default function LiftingForm() {
               <option value="DLUX">DLUX</option>
               <option value="Maximova">Maximova</option>
               <option value="Beauty Wave">Beauty Wave</option>
+              <option value="My Lamination">My Lamination</option>
             </select>
           </div>
 
@@ -453,3 +504,4 @@ export default function LiftingForm() {
     </div>
   );
 }
+
